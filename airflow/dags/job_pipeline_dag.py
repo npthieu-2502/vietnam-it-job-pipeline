@@ -36,5 +36,12 @@ with DAG(
         env={"POSTGRES_HOST": "postgres"}
     )
 
-    # Khai báo luồng chạy: Scrape xong mới được chạy dbt
-    scrape_task >> dbt_run_task
+    # Task 3: Chạy dbt test để kiểm tra rác dữ liệu (Data Quality Checks)
+    dbt_test_task = BashOperator(
+        task_id='dbt_data_quality_check',
+        bash_command='export PATH=$PATH:/home/airflow/.local/bin && cd /opt/airflow/dbt_transform && dbt test --profiles-dir .',
+        env={"POSTGRES_HOST": "postgres"}
+    )
+
+    # Khai báo luồng ống nước: Cào => Làm Sạch/Tính Toán => Kiểm duyệt Lỗi
+    scrape_task >> dbt_run_task >> dbt_test_task

@@ -1,0 +1,23 @@
+version: 2
+
+models:
+  - name: stg_jobs
+    description: "Bảng dữ liệu đã qua tiền xử lý, bóc tách lương từ bảng raw_jobs"
+    columns:
+      - name: job_hash
+        description: "Mã MD5 chống trùng lặp sinh ra từ tên việc làm và công ty"
+        tests:
+          - unique
+          - not_null
+      - name: title
+        description: "Tiêu đề công việc"
+        tests:
+          - not_null
+          
+  - name: fct_skills
+    description: "Bảng đếm tần suất của các kỹ năng công nghệ"
+    columns:
+      - name: skill_name
+        description: "Tên Kỹ năng (React, Python, AWS...)"
+        tests:
+          - not_null
