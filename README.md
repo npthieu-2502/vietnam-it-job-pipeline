@@ -145,6 +145,26 @@ Các bảng để phân tích:
 
 - Dữ liệu lương (`fct_salary_by_role_level`) thường thưa vì phần lớn tin tuyển dụng trên ITviec ghi "Thoả thuận" thay vì mức lương cụ thể.
 - Thư mục `data/raw/` và toàn bộ file `.csv` không được đưa lên version control.
+- Nếu scraper trả về lỗi 403 (Cloudflare chặn), dùng script tiện ích để nạp lại data từ MinIO hoặc CSV:
+  ```bash
+  .venv\Scripts\python src/load_from_minio.py
+  ```
 
+---
 
+## Dashboard
 
+Một số biểu đồ được xây dựng trên Metabase từ dữ liệu thu thập thực tế:
+
+**Top 20 kỹ năng IT được tuyển dụng nhiều nhất**
+![Top 20 IT Skills](assets/top_skills.png)
+
+**Phân bổ việc làm theo nhóm ngành**
+![Phân bổ việc làm](assets/jobs_by_role.png)
+
+**Phân bổ cấp bậc (Level)**
+![Phân bổ cấp bậc](assets/job_level.png)
+
+---
+
+*Dự án portfolio cá nhân — xây dựng với mục tiêu thực hành kiến trúc ELT và Modern Data Stack.*
