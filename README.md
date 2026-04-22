@@ -84,4 +84,3 @@ pip install -r requirements.txt
    - Kết nối vào View `fct_skills` hoặc `stg_jobs` và tận hưởng biểu đồ tự tuỳ chỉnh!
 
 ---
-*Dự án thực hiện dưới dạng Porfolio cá nhân đánh giá năng lực tích hợp Modern Data Stack.*
