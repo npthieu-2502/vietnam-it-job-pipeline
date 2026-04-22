@@ -31,7 +31,12 @@ graph TD
 - **Trích xuất dữ liệu (Python/Cloudscraper):** Bypass dạn rào chắn mã hoá của Cloudflare. Thu thập HTML qua `BeautifulSoup`.
 - **Data Lake (MinIO):** Bơm dữ liệu cào được thành CSV thô và sao lưu trên MinIO (S3-compatible) cho mục đích Audit.
 - **Incremental Loading (Upsert):** Dùng thuật toán Hash MD5 sinh `job_hash` chống trùng lặp dữ liệu tuyệt đối khi Airflow chạy luồng hằng ngày (Bảo vệ Database).
-- **Transformation (dbt):** Áp dụng regex bằng code SQL để làm sạch chuỗi lương từ text ("1000 - 2000 USD") sang Numeric Array/Int; Pivot tách danh sách các Skill (Python, AWS, React) thành Dimension phân tích riêng.
+- **Transformation (dbt):** Pipeline 4 tầng xử lý SQL lồng nhau:
+  - `stg_jobs`: Bóc tách và Parsing cột lương từ Text ("1000 - 2000 USD") sang dạng số (Numeric).
+  - `int_jobs_categorized`: Chuẩn hoá Danh mục — tự động phân loại 12 nhóm Nghề IT và 7 Cấp bậc (Intern ↔ Manager) từ tên công việc hỗn độn bằng thuật toán `ILIKE`.
+  - `fct_skills`: Sắp xếp Top Kỹ năng được yêu cầu nhiều nhất.
+  - `fct_salary_by_role_level`: Bảng thống kê Lương (Min/Max/Avg) theo từng Vị trí và Cấp bậc.
+- **Data Quality Checks (dbt test):** Kiểm duyệt tự động `NOT NULL` và `UNIQUE` cho từng dòng dữ liệu trước khi đổ vào Dashboard.
 - **BI Visualization (Metabase):** Trực quan hoá Top Ranking siêu việt.
 
 ---
@@ -45,8 +50,11 @@ graph TD
  ┃   ┗ 📜 job_pipeline_dag.py
  ┣ 📂 dbt_transform         # Thư mục mã nguồn dbt (Transformation)
  ┃ ┣ 📂 models
- ┃ ┃ ┣ 📜 stg_jobs.sql      # dbt schema: Bóc tách text lương (Parsing Salary)
- ┃ ┃ ┗ 📜 fct_skills.sql    # dbt table: Đếm xếp hạng Kỹ năng
+ ┃ ┃ ┣ 📜 stg_jobs.sql             # Parsing Salary từ text sang số (Numeric)
+ ┃ ┃ ┣ 📜 int_jobs_categorized.sql  # Chuẩn hoá: Phân loại Nghề & Cấp bậc tự động
+ ┃ ┃ ┣ 📜 fct_skills.sql            # Xếp hạng Kỹ năng (Top Skills)
+ ┃ ┃ ┣ 📜 fct_salary_by_role_level.sql  # Thống kê Lương theo Vị trí và Cấp bậc
+ ┃ ┃ ┗ 📜 schema.yml               # Data Quality Tests (NOT NULL, UNIQUE)
  ┃ ┗ 📜 dbt_project.yml
  ┣ 📂 src                   # Mã nguồn Python Application
  ┃ ┗ 📜 scraper.py          # Lõi cào dữ liệu, Hash, MinIO Lake và Upsert PostgreSQL
@@ -81,6 +89,9 @@ pip install -r requirements.txt
 2. **Khởi động Airflow:** Truy cập `http://localhost:8080`, Bật công tắc Unpause (Enable) cho `job_market_pipeline_v1` DAG. Quá trình cào (Ext) và đẩy dbt (Tnf) sẽ chạy song song.
 3. **Mở Metabase Dashboard:** Truy cập vào `http://localhost:3000`
    - Cấu hình kết nối DB bằng Host: `postgres`, Port `5432` DB Name: `job_market`, User/Pass: `de_user` / `de_password`.
-   - Kết nối vào View `fct_skills` hoặc `stg_jobs` và tận hưởng biểu đồ tự tuỳ chỉnh!
+   - Kết nối vào các bảng sau để vẽ biểu đồ:
+     - `fct_skills` → Top Kỹ năng IT được yêu cầu nhiều nhất.
+     - `fct_salary_by_role_level` → So sánh mức lương theo Vị trí và Cấp bậc.
+     - `int_jobs_categorized` → Phân phối việc làm theo ngành nghề.
 
 ---
