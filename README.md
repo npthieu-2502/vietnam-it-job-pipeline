@@ -1,97 +1,150 @@
-# 📊 Hệ thống Data Pipeline: Phân tích Thị trường Việc làm IT Việt Nam
+# Vietnam IT Job Market — Data Pipeline
 
-![Cấu trúc](https://img.shields.io/badge/Architecture-MDS%20(Modern%20Data%20Stack)-blue)
-![Docker](https://img.shields.io/badge/Containerization-Docker_Compose-blue?logo=docker)
-![Airflow](https://img.shields.io/badge/Orchestrator-Apache_Airflow-red?logo=apacheairflow)
-![DBT](https://img.shields.io/badge/Transformation-dbt-orange?logo=dbt)
-![Metabase](https://img.shields.io/badge/BI-Metabase-blue?logo=metabase)
+![Architecture](https://img.shields.io/badge/Architecture-ELT-blue)
+![Docker](https://img.shields.io/badge/Stack-Docker_Compose-2496ED?logo=docker)
+![Airflow](https://img.shields.io/badge/Orchestration-Apache_Airflow-017CEE?logo=apacheairflow)
+![dbt](https://img.shields.io/badge/Transformation-dbt-FF694B?logo=dbt)
+![MinIO](https://img.shields.io/badge/Data_Lake-MinIO-C72E49)
+![Metabase](https://img.shields.io/badge/BI-Metabase-509EE3)
 
-Dự án Data Engineering End-to-End ứng dụng kiến trúc **ELT (Extract, Load, Transform)** để thu thập, làm sạch và trực quan hoá xu hướng kỹ năng/mức lương ngành IT dựa trên dữ liệu tuyển dụng thực tế. Hệ thống được đóng gói hoàn toàn trong Docker bằng `docker-compose`.
+Pipeline dữ liệu end-to-end thu thập tin tuyển dụng IT từ [ITviec](https://itviec.com), lưu trữ dữ liệu thô trên MinIO (Data Lake tương thích S3), nạp vào PostgreSQL theo cơ chế incremental, sau đó transform bằng dbt và trực quan hoá trên Metabase.
 
-## 🏗️ Kiến trúc Hệ thống (Architecture Pipeline)
+Toàn bộ hệ thống chạy trong Docker, không cần cài đặt thêm gì ngoài Docker Desktop và Python.
 
-Dự án mô phỏng toàn trị chuỗi xử lý dữ liệu tiêu chuẩn tại các tập đoàn Tech:
+---
+
+## Kiến trúc hệ thống
 
 ```mermaid
 graph TD
-    A[IT Job Web] -->|HTTP/Cloudscraper| B(Python Scraper)
-    B -->|Boto3 Upload CSV| C[(MinIO Data Lake MOCK S3)]
-    B -->|Upsert/Hash MD5| D[(PostgreSQL Data Warehouse)]
-    D -->|SQL/RegEx Transformation| E(dbt: Data Build Tool)
-    E -->|Write Staging/Fact Tables| D
-    D -->|Connect Data| F[Metabase Dashboard]
-    
-    subgraph Orchestrator
-    G((Apache Airflow)) -.-> |Schedule & Trigger| B
-    G -.-> |Trigger| E
+    A[ITviec Website] -->|HTTP / Cloudscraper| B(Python Scraper)
+    B -->|Upload CSV| C[(MinIO — Data Lake)]
+    B -->|UPSERT theo MD5 hash| D[(PostgreSQL — Data Warehouse)]
+    D -->|SQL Transformation| E(dbt)
+    E -->|Staging & Fact Tables| D
+    D -->|Query| F[Metabase Dashboard]
+
+    subgraph Điều phối
+    G((Apache Airflow)) -.->|Lên lịch| B
+    G -.->|Kích hoạt| E
     end
 ```
 
-### ✨ Tính năng / Công nghệ cốt lõi
-- **Trích xuất dữ liệu (Python/Cloudscraper):** Bypass dạn rào chắn mã hoá của Cloudflare. Thu thập HTML qua `BeautifulSoup`.
-- **Data Lake (MinIO):** Bơm dữ liệu cào được thành CSV thô và sao lưu trên MinIO (S3-compatible) cho mục đích Audit.
-- **Incremental Loading (Upsert):** Dùng thuật toán Hash MD5 sinh `job_hash` chống trùng lặp dữ liệu tuyệt đối khi Airflow chạy luồng hằng ngày (Bảo vệ Database).
-- **Transformation (dbt):** Pipeline 4 tầng xử lý SQL lồng nhau:
-  - `stg_jobs`: Bóc tách và Parsing cột lương từ Text ("1000 - 2000 USD") sang dạng số (Numeric).
-  - `int_jobs_categorized`: Chuẩn hoá Danh mục — tự động phân loại 12 nhóm Nghề IT và 7 Cấp bậc (Intern ↔ Manager) từ tên công việc hỗn độn bằng thuật toán `ILIKE`.
-  - `fct_skills`: Sắp xếp Top Kỹ năng được yêu cầu nhiều nhất.
-  - `fct_salary_by_role_level`: Bảng thống kê Lương (Min/Max/Avg) theo từng Vị trí và Cấp bậc.
-- **Data Quality Checks (dbt test):** Kiểm duyệt tự động `NOT NULL` và `UNIQUE` cho từng dòng dữ liệu trước khi đổ vào Dashboard.
-- **BI Visualization (Metabase):** Trực quan hoá Top Ranking siêu việt.
+**Luồng dữ liệu:** Web → MinIO (Data Lake) → PostgreSQL (DWH) → dbt (Transform) → Metabase (BI)
 
 ---
 
-## 📂 Cấu trúc Thư mục
+## Tính năng chính
 
-```text
-📦 it-job-market-de
- ┣ 📂 airflow               # Thư mục chứa dags và config điều phối của Airflow
- ┃ ┗ 📂 dags
- ┃   ┗ 📜 job_pipeline_dag.py
- ┣ 📂 dbt_transform         # Thư mục mã nguồn dbt (Transformation)
- ┃ ┣ 📂 models
- ┃ ┃ ┣ 📜 stg_jobs.sql             # Parsing Salary từ text sang số (Numeric)
- ┃ ┃ ┣ 📜 int_jobs_categorized.sql  # Chuẩn hoá: Phân loại Nghề & Cấp bậc tự động
- ┃ ┃ ┣ 📜 fct_skills.sql            # Xếp hạng Kỹ năng (Top Skills)
- ┃ ┃ ┣ 📜 fct_salary_by_role_level.sql  # Thống kê Lương theo Vị trí và Cấp bậc
- ┃ ┃ ┗ 📜 schema.yml               # Data Quality Tests (NOT NULL, UNIQUE)
- ┃ ┗ 📜 dbt_project.yml
- ┣ 📂 src                   # Mã nguồn Python Application
- ┃ ┗ 📜 scraper.py          # Lõi cào dữ liệu, Hash, MinIO Lake và Upsert PostgreSQL
- ┣ 📂 data                  # Lưu trữ CSV local nếu không xài docker.
- ┣ 📜 docker-compose.yml    # Build toàn bộ hệ thống (db, metabase, airflow, minio)
- ┣ 📜 init.sql              # Khởi tạo Table PostgreSQL ban đầu
- ┗ 📜 requirements.txt      # Gói phụ thuộc Python
+**Incremental Loading (Upsert)**
+Mỗi tin tuyển dụng được băm MD5 từ tên vị trí và công ty. Pipeline có thể chạy lặp lại hàng ngày mà không sinh ra dữ liệu trùng.
+
+**Data Lake**
+File CSV thô được upload lên MinIO trước khi ghi vào database, giúp tái nạp lại dữ liệu bất kỳ lúc nào mà không cần cào lại từ web.
+
+**Transformation với dbt (4 model)**
+- `stg_jobs` — Parsing cột lương từ chuỗi văn bản sang dạng số.
+- `int_jobs_categorized` — Phân loại tự động 12 nhóm nghề và 7 cấp bậc từ tên công việc.
+- `fct_skills` — Thống kê tần suất kỹ năng trên toàn bộ tin tuyển dụng.
+- `fct_salary_by_role_level` — Mức lương trung bình và cao nhất theo vị trí và cấp bậc.
+
+**Data Quality Tests**
+Sau mỗi lần transform, dbt tự động kiểm tra `not_null` và `unique` trên các cột quan trọng trước khi dữ liệu vào Dashboard.
+
+---
+
+## Cấu trúc thư mục
+
+```
+vietnam-it-job-pipeline/
+├── airflow/
+│   └── dags/
+│       └── job_pipeline_dag.py       # DAG: scrape → dbt run → dbt test
+├── dbt_transform/
+│   ├── models/
+│   │   ├── stg_jobs.sql
+│   │   ├── int_jobs_categorized.sql
+│   │   ├── fct_skills.sql
+│   │   ├── fct_salary_by_role_level.sql
+│   │   └── schema.yml                # Định nghĩa data quality tests
+│   └── dbt_project.yml
+├── src/
+│   ├── scraper.py                    # Script chính: cào web → MinIO → PostgreSQL
+│   ├── load_from_minio.py            # Tải lại data từ MinIO vào DB
+│   └── load_from_csv.py             # Tải từ file CSV local (dùng khi MinIO không có data)
+├── docker-compose.yml                # PostgreSQL, Airflow, MinIO, Metabase
+├── init.sql                          # Khởi tạo schema database
+└── requirements.txt
 ```
 
 ---
 
-## 🚀 Hướng dẫn Chạy hệ thống local
+## Yêu cầu
 
-### 1. Khởi động Cụm hệ thống (Spin-up Infrastructure)
-Vì hệ thống đã được Container hoá, bạn chỉ cần gõ duy nhất một lệnh:
+- Docker Desktop
+- Python 3.9+
+
+---
+
+## Hướng dẫn chạy
+
+**1. Khởi động toàn bộ services**
 ```bash
-docker-compose up -d --build
+docker-compose up -d
 ```
 
-### 2. Cấu hình môi trường nội bộ
-Mở Command prompt (hoặc PowerShell) tại folder gốc của dự án:
-```powershell
+**2. Tạo môi trường Python**
+```bash
 python -m venv .venv
-.\.venv\Scripts\activate
+.venv\Scripts\activate
 pip install -r requirements.txt
 ```
 
-*(Lưu ý: Nếu bị văng lỗi Emoji Unicode trên CMD, hãy chạy thêm: `$env:PYTHONIOENCODING="utf-8"`)*
+**3. Chạy scraper**
+```bash
+# CMD
+set PYTHONIOENCODING=utf-8 && .venv\Scripts\python src/scraper.py
 
-### 3. Vận hành quy trình tự động trực quan (Flow)
-1. **Kiểm tra MinIO (Data Lake):** Mở `http://localhost:9001` (admin/password). Bucket `it-jobs-lake` đã được tạo sẵn.
-2. **Khởi động Airflow:** Truy cập `http://localhost:8080`, Bật công tắc Unpause (Enable) cho `job_market_pipeline_v1` DAG. Quá trình cào (Ext) và đẩy dbt (Tnf) sẽ chạy song song.
-3. **Mở Metabase Dashboard:** Truy cập vào `http://localhost:3000`
-   - Cấu hình kết nối DB bằng Host: `postgres`, Port `5432` DB Name: `job_market`, User/Pass: `de_user` / `de_password`.
-   - Kết nối vào các bảng sau để vẽ biểu đồ:
-     - `fct_skills` → Top Kỹ năng IT được yêu cầu nhiều nhất.
-     - `fct_salary_by_role_level` → So sánh mức lương theo Vị trí và Cấp bậc.
-     - `int_jobs_categorized` → Phân phối việc làm theo ngành nghề.
+# PowerShell
+$env:PYTHONIOENCODING="utf-8"; .venv\Scripts\python src/scraper.py
+```
+
+> Nếu ITviec trả về lỗi 403, dùng script tiện ích để nạp lại data từ MinIO:
+> ```bash
+> .venv\Scripts\python src/load_from_minio.py
+> ```
+
+**4. Chạy dbt**
+```bash
+cd dbt_transform
+..\.venv\Scripts\dbt run --profiles-dir .
+..\.venv\Scripts\dbt test --profiles-dir .
+```
+
+**5. Truy cập các services**
+
+| Service  | URL                    | Tài khoản               |
+|----------|------------------------|-------------------------|
+| Metabase | http://localhost:3000  | Tạo tài khoản lần đầu  |
+| Airflow  | http://localhost:8080  | admin / admin           |
+| MinIO    | http://localhost:9001  | admin / password        |
+
+Kết nối Metabase với PostgreSQL: `host=postgres`, `db=job_market`, `user=de_user`, `pass=de_password`.
+
+Các bảng để phân tích:
+
+| Bảng | Nội dung |
+|------|----------|
+| `fct_skills` | Xếp hạng kỹ năng theo số lượng tin tuyển dụng |
+| `fct_salary_by_role_level` | Mức lương theo vị trí và cấp bậc |
+| `int_jobs_categorized` | Danh sách job đã được phân loại nghề và level |
 
 ---
+
+## Lưu ý
+
+- Dữ liệu lương (`fct_salary_by_role_level`) thường thưa vì phần lớn tin tuyển dụng trên ITviec ghi "Thoả thuận" thay vì mức lương cụ thể.
+- Thư mục `data/raw/` và toàn bộ file `.csv` không được đưa lên version control.
+
+
+
