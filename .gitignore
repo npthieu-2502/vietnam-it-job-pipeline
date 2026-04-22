@@ -1,0 +1,36 @@
+# Python
+.venv/
+__pycache__/
+*.pyc
+
+# IDEs / Editors
+.idea/
+.vscode/
+
+# Logs and databases
+logs/
+*.log
+*.sqlite
+*.db
+
+# Data Lake / Raw Data files
+data/raw/
+*.csv
+*.json
+*.parquet
+
+# Airflow
+airflow-webserver.pid
+airflow.db
+airflow.cfg
+logs/
+airflow/logs/
+
+# dbt
+dbt_transform/target/
+dbt_transform/dbt_packages/
+dbt_transform/logs/
+
+# OS generated files
+.DS_Store
+Thumbs.db

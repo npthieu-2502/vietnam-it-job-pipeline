@@ -1,0 +1,77 @@
+version: '3.8'
+
+services:
+  postgres:
+    image: postgres:15
+    container_name: job_market_db
+    environment:
+      POSTGRES_USER: de_user
+      POSTGRES_PASSWORD: de_password
+      POSTGRES_DB: job_market
+    ports:
+      - "5432:5432"
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+      - ./init.sql:/docker-entrypoint-initdb.d/init.sql # Tự động chạy script tạo bảng khi DB start
+
+  # Thêm dịch vụ Metabase để trực quan hoá dữ liệu
+  metabase:
+    image: metabase/metabase:latest
+    container_name: job_market_metabase
+    ports:
+      - "3000:3000"
+    environment:
+      MB_DB_TYPE: postgres
+      MB_DB_DBNAME: job_market
+      MB_DB_PORT: 5432
+      MB_DB_USER: de_user
+      MB_DB_PASS: de_password
+      MB_DB_HOST: postgres
+    depends_on:
+      - postgres
+
+  # Thêm dịch vụ MinIO (Data Lake local)
+  minio:
+    image: minio/minio
+    container_name: job_market_minio
+    ports:
+      - "9000:9000"
+      - "9001:9001"
+    environment:
+      - MINIO_ROOT_USER=admin
+      - MINIO_ROOT_PASSWORD=password
+    command: server /data --console-address ":9001"
+
+  minio-create-bucket:
+    image: minio/mc
+    depends_on:
+      - minio
+    entrypoint: >
+      /bin/sh -c "
+      sleep 5;
+      /usr/bin/mc alias set myminio http://minio:9000 admin password;
+      /usr/bin/mc mb myminio/it-jobs-lake || true;
+      exit 0;
+      "
+
+  # Thêm dịch vụ Apache Airflow (Bộ điều phối siêu gọn nhẹ Standalone)
+  airflow:
+    image: apache/airflow:2.8.2-python3.9
+    container_name: job_market_airflow
+    ports:
+      - "8080:8080"
+    volumes:
+      - ./airflow/dags:/opt/airflow/dags
+      - ./src:/opt/airflow/src
+      - ./dbt_transform:/opt/airflow/dbt_transform
+    environment:
+      - AIRFLOW__CORE__LOAD_EXAMPLES=False
+      - POSTGRES_HOST=postgres
+      # Lệnh siêu việt cài trực tiếp các thư viện ta cần vào container Airflow
+      - _PIP_ADDITIONAL_REQUIREMENTS=requests beautifulsoup4 pandas sqlalchemy psycopg2-binary dbt-postgres cloudscraper boto3
+    command: standalone
+    depends_on:
+      - postgres
+
+volumes:
+  pgdata:

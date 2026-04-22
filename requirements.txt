@@ -1,0 +1,9 @@
+requests
+beautifulsoup4
+pandas
+sqlalchemy
+psycopg2-binary
+dbt-postgres
+protobuf<5
+cloudscraper
+boto3
