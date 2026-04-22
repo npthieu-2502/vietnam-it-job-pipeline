@@ -114,8 +114,13 @@ def fetch_it_jobs():
         db_host = os.environ.get("POSTGRES_HOST", "localhost")
         engine = create_engine(f'postgresql://de_user:de_password@{db_host}:5432/job_market')
         
+        # Loại bỏ trùng lặp trong CHÍNH batch cào được (Tránh lỗi CardinalityViolation)
+        df_deduped = df.drop_duplicates(subset=['job_hash'], keep='first')
+        print(f"   ℹ️ Sau khi lọc trùng: {len(df)} → {len(df_deduped)} dòng duy nhất.")
+        
         # Đẩy dữ liệu vào bảng tạm (Staging Temp Table)
-        df.to_sql('raw_jobs_temp', con=engine, if_exists='replace', index=False)
+        df_deduped.to_sql('raw_jobs_temp', con=engine, if_exists='replace', index=False)
+
         
         # Cập nhật hoặc chèn mới (UPSERT) dựa trên job_hash
         upsert_query = text("""

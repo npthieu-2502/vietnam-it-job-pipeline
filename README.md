@@ -19,14 +19,14 @@ Toàn bộ hệ thống chạy trong Docker, không cần cài đặt thêm gì 
 graph TD
     A[ITviec Website] -->|HTTP / Cloudscraper| B(Python Scraper)
     B -->|Upload CSV| C[(MinIO — Data Lake)]
-    B -->|UPSERT theo MD5 hash| D[(PostgreSQL — Data Warehouse)]
+    B -->|UPSERT via MD5 hash| D[(PostgreSQL — Data Warehouse)]
     D -->|SQL Transformation| E(dbt)
     E -->|Staging & Fact Tables| D
     D -->|Query| F[Metabase Dashboard]
 
-    subgraph Điều phối
-    G((Apache Airflow)) -.->|Lên lịch| B
-    G -.->|Kích hoạt| E
+    subgraph Orchestration
+    G((Apache Airflow)) -.->|Schedule| B
+    G -.->|Trigger| E
     end
 ```
 
